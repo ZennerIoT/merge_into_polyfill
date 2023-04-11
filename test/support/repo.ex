@@ -10,7 +10,8 @@ defmodule Repo do
        username: "postgres",
        password: "postgres",
        hostname: "localhost",
-       pool_workers: 5
+       pool_workers: 5,
+       pool: Ecto.Adapters.SQL.Sandbox
      )}
   end
 end
