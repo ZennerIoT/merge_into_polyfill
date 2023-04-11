@@ -1,6 +1,5 @@
 defmodule MergeIntoPolyfill do
   defmacro merge_into(target_schema, on_clause, data_source, opts \\ [], when_clauses) do
-    builder = Keyword.get(opts, :builder, MergeIntoPolyfill.Builders.MergeInto)
 
     on_clause =
       on_clause
@@ -12,7 +11,9 @@ defmodule MergeIntoPolyfill do
       |> Enum.map(&compile_when_clause/1)
 
     quote do
-      unquote(builder).build_plan(
+      builder = Keyword.get(unquote(opts), :builder, MergeIntoPolyfill.Builders.MergeInto)
+
+      builder.build_plan(
         unquote_splicing([target_schema, on_clause, data_source, when_clauses, opts])
       )
     end
@@ -41,6 +42,9 @@ defmodule MergeIntoPolyfill do
 
         :delete ->
           :delete
+
+        :nothing ->
+          :nothing
 
         {:update, [{field, _} | _] = updates} when is_atom(field) ->
           updates =

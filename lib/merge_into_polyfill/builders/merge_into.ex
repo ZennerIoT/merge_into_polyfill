@@ -5,7 +5,10 @@ defmodule MergeIntoPolyfill.Builders.MergeInto do
     IO.inspect when_clauses
     Ecto.Multi.new()
     |> Ecto.Multi.run(:merge_into, fn repo, _context ->
-      repo.query()
+      # TODO generate SQL
+      # TODO dump params and make nice parameter list
+      # call repo.query!(sql, parameters)
+      # done!
     end)
   end
 end

@@ -2,7 +2,8 @@ defmodule MergeIntoPolyfill.Builder do
   @type merge_action ::
     :insert |
     {:update, [{atom(), Ecto.Query.dynamic_expr()}]} |
-    :delete
+    :delete |
+    :nothing
 
   @type when_clause :: {:matched | :not_matched, Ecto.Query.dynamic_expr(), merge_action()}
   @type data_source :: Ecto.Query.t() | MergeIntoPolyfill.Values.t()
