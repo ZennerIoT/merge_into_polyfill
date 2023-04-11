@@ -9,7 +9,7 @@ defmodule MergeIntoPolyfill do
     when_clauses =
       when_clauses
       |> Keyword.fetch!(:do)
-      |> Enum.map(&compile_when_clause(&1, target_schema))
+      |> Enum.map(&compile_when_clause/1)
 
     quote do
       unquote(builder).build_plan(
@@ -26,8 +26,8 @@ defmodule MergeIntoPolyfill do
     {:dynamic, [context: Elixir, imports: [{1, Ecto.Query}, {2, Ecto.Query}]], [quoted]}
   end
 
-  @spec compile_when_clause(tuple(), module()) :: Macro.t()
-  defp compile_when_clause({:->, _, [[condition], action]}, target_schema) do
+  @spec compile_when_clause(tuple()) :: Macro.t()
+  defp compile_when_clause({:->, _, [[condition], action]}) do
     {match, condition} =
       case condition do
         {:and, _ctx, [match?, condition]} -> {compile_matched(match?), wrap_dynamic(condition)}
@@ -41,9 +41,6 @@ defmodule MergeIntoPolyfill do
 
         :delete ->
           :delete
-
-        :update ->
-          build_update(target_schema.__schema__(:fields))
 
         {:update, [{field, _} | _] = updates} when is_atom(field) ->
           updates =
