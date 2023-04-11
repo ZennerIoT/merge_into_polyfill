@@ -4,12 +4,13 @@ defmodule Repo do
     adapter: Ecto.Adapters.Postgres
 
   def init(_context, config) do
-    {:ok, Keyword.merge(config, [
-      database: "merge_into_polyfill_test",
-      username: "postgres",
-      password: "postgres",
-      hostname: "localhost",
-      pool_workers: 5
-    ])}
+    {:ok,
+     Keyword.merge(config,
+       database: "merge_into_polyfill_test",
+       username: "postgres",
+       password: "postgres",
+       hostname: "localhost",
+       pool_workers: 5
+     )}
   end
 end

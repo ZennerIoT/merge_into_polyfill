@@ -1,6 +1,5 @@
 defmodule MergeIntoPolyfill do
   defmacro merge_into(target_schema, on_clause, data_source, opts \\ [], when_clauses) do
-
     on_clause =
       on_clause
       |> wrap_dynamic()
