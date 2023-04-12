@@ -4,7 +4,7 @@ defmodule MergeIntoPolyfill.Builders.MergeInto do
 
   def build_plan(target_schema, on_clause, data_source, when_clauses, _opts) do
     Ecto.Multi.new()
-    |> Ecto.Multi.run(:merge_into, fn repo, _context ->
+    |> Ecto.Multi.run(:merge, fn repo, _context ->
       whens =
         Enum.map(when_clauses, fn
           {:matched, condition, action} ->
@@ -30,15 +30,20 @@ defmodule MergeIntoPolyfill.Builders.MergeInto do
         )
 
       {sql, params} = repo.to_sql(:all, query)
+
+      # here, we reshape the select query into a merge query
       sql =
         sql
+        # the target_table is already in the from_list
         |> String.replace("SELECT TRUE FROM", "MERGE INTO")
+        # the data_source is in the right join
         |> String.replace("RIGHT OUTER JOIN", "USING")
+        # the when_clause list is embedded in the where expression
         |> String.replace("WHERE (", "")
+        # ecto puts parantheses around the where expression, so we remove them
         |> String.replace(~r/\)$/, "")
 
-      repo.query!(sql, params)
-      {:ok, nil}
+      {:ok, repo.query!(sql, params)}
     end)
   end
 
@@ -71,10 +76,11 @@ defmodule MergeIntoPolyfill.Builders.MergeInto do
   end
 
   def action_to_dynamic({:update, updates}) do
-    updates = Enum.map(updates, fn {field, expr} ->
-      dynamic(fragment("? = ?", literal(^to_string(field)), ^expr))
-    end)
-    |> join_list()
+    updates =
+      Enum.map(updates, fn {field, expr} ->
+        dynamic(fragment("? = ?", literal(^to_string(field)), ^expr))
+      end)
+      |> join_list()
 
     dynamic(fragment("UPDATE SET ?", ^updates))
   end

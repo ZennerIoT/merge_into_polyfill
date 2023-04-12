@@ -1,5 +1,4 @@
 defmodule MergeIntoPolyfill.DataCase do
-
   use ExUnit.CaseTemplate
 
   using do

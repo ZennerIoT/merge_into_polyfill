@@ -78,12 +78,14 @@ defmodule MergeIntoPolyfill do
 
   def insert(fields) do
     _ = fields
+
     raise RuntimeError,
       message: "not meant to be called directly, use in merge_into polyfill macro."
   end
 
   def update(updates) do
     _ = updates
+
     raise RuntimeError,
       message: "not meant to be called directly, use in merge_into polyfill macro."
   end

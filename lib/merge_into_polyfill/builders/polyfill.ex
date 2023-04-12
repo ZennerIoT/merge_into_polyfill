@@ -45,15 +45,18 @@ defmodule MergeIntoPolyfill.Builders.Polyfill do
 
       {:ok, repo.all(query)}
     end)
-    |> Ecto.Multi.run(:fulfil_match_clauses, fn repo, %{find_matches: result} ->
-      when_clauses
-      |> Enum.with_index()
-      |> Enum.each(fn {{_, _, action}, index} ->
-        candidates = find_candidates(result, index)
-        execute_action(candidates, action, repo, on_clause, target_schema, data_source)
-      end)
+    |> Ecto.Multi.run(:merge, fn repo, %{find_matches: result} ->
+      affected =
+        when_clauses
+        |> Enum.with_index()
+        |> Enum.map(fn {{_, _, action}, index} ->
+          candidates = find_candidates(result, index)
+          execute_action(candidates, action, repo, on_clause, target_schema, data_source)
+        end)
+        |> Enum.map(&elem(&1, 0))
+        |> Enum.sum()
 
-      {:ok, nil}
+      {:ok, affected}
     end)
   end
 
@@ -68,14 +71,16 @@ defmodule MergeIntoPolyfill.Builders.Polyfill do
     |> Enum.filter(&Map.get(&1, to_string(index)))
   end
 
+  @spec execute_action([any()], any, module, Ecto.Query.dynamic_expr(), module(), any()) ::
+          {non_neg_integer(), nil}
   def execute_action(candidates, action, repo, on_clause, target_schema, data_source)
 
   def execute_action([], _, _, _, _, _) do
-    :ok
+    {0, nil}
   end
 
   def execute_action(_, :nothing, _, _, _, _) do
-    :ok
+    {0, nil}
   end
 
   def execute_action(candidates, {:insert, fields}, repo, _on_clause, target_schema, data_source) do
@@ -98,11 +103,16 @@ defmodule MergeIntoPolyfill.Builders.Polyfill do
 
   def execute_action(candidates, {:update, updates}, repo, on_clause, target_schema, data_source) do
     candidates = Enum.map(candidates, & &1["target_id"])
-    query = from t in target_schema, as: :target,
-      where: t.id in ^candidates,
-      join: ds in ^make_source(data_source), as: :source,
-      on: ^on_clause,
-      update: [set: ^updates]
+
+    query =
+      from(t in target_schema,
+        as: :target,
+        where: t.id in ^candidates,
+        join: ds in ^make_source(data_source),
+        as: :source,
+        on: ^on_clause,
+        update: [set: ^updates]
+      )
 
     repo.update_all(query, [])
   end
