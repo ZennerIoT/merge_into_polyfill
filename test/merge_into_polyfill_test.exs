@@ -9,10 +9,10 @@ defmodule MergeIntoPolyfillTest do
 
     plan =
       merge_into(Book, as(:target).title == as(:source).title, values) do
-        matched?() and as(:target).title == ^"Book 2" -> :delete
-        matched?() -> {:update, [:year]}
-        not matched?() and as(:source).year > 2001 -> {:update, [:year]}
-        not matched?() -> :insert
+        matched?() and as(:target).title == ^"Book 2" -> delete()
+        matched?() -> update([:year])
+        not matched?() and as(:source).year > 2001 -> update([:year])
+        not matched?() -> insert([:title, :year])
       end
 
     assert %Ecto.Multi{} = plan
@@ -31,11 +31,19 @@ defmodule MergeIntoPolyfillTest do
       }
 
     merge_into(Book, as(:target).title == as(:source).title, source_query, builder: MergeIntoPolyfill.Builders.Polyfill) do
-      matched?() and as(:source).year >= 2008 -> {:update, [:year]}
-      matched?() and as(:target).title == ^"Book 2" -> :delete
-      matched?() -> {:update, [:year]}
-      not matched?() -> :insert
+      matched?() and as(:source).year >= 2008 -> update([:year])
+      matched?() and as(:target).title == ^"Book 2" -> delete()
+      matched?() -> update(title: fragment("concat(?, ' (', ?, ')')", as(:target).title, as(:source).year))
+      not matched?() -> insert([:title, :year])
     end
     |> Repo.transaction()
+
+    assert Repo.aggregate(Book, :count, :id) == 9
+
+    # test all match cases
+    assert Repo.one(from(b in Book, where: b.title == ^"Book 10", select: b.year)) == 2010
+    assert is_nil(Repo.get_by(Book, title: "Book 2"))
+    assert not is_nil(Repo.get_by(Book, title: "Book 3 (2003)"))
+    assert %{year: 2006} = Repo.get_by(Book, title: "Book 6")
   end
 end

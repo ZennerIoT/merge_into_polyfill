@@ -33,8 +33,9 @@ defmodule MergeIntoPolyfill.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:ecto, "~> 3.9"},
-      {:ecto_sql, "~> 3.9"},
+      # {:ecto, "~> 3.10"},
+      {:ecto, path: "../ecto", override: true},
+      {:ecto_sql, "~> 3.10"},
       {:postgrex, "~> 0.16.5"},
       {:jason, "~> 1.4"}
     ]

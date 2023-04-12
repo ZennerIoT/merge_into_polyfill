@@ -36,36 +36,33 @@ defmodule MergeIntoPolyfill do
 
     action =
       case action do
-        :insert ->
-          :insert
+        {:insert, _, [fields]} ->
+          {:insert, fields}
 
-        :delete ->
+        {:delete, _, []} ->
           :delete
 
-        :nothing ->
+        {:do_nothing, _, []} ->
           :nothing
 
-        {:update, [{field, _} | _] = updates} when is_atom(field) ->
-          updates =
-            Enum.map(updates, fn {field, expr} ->
-              {field, expr |> wrap_dynamic()}
-            end)
-
-          {:update, updates}
-
-        {:update, [field | _] = fields} when is_atom(field) ->
-          build_update(fields)
+        {:update, _, [updates]} ->
+          build_update(updates)
       end
 
     {:{}, [], [match, condition, action]}
   end
 
   @spec build_update([atom()]) :: {:update, [{atom(), Ecto.Query.dynamic_expr()}]}
-  defp build_update(fields) do
+  defp build_update(updates) do
     updates =
-      Enum.map(fields, fn field ->
-        expr = wrap_dynamic({{:., [], [{:as, [], [:source]}, field]}, [no_parens: true], []})
-        {field, expr}
+      Enum.map(updates, fn
+        field when is_atom(field) ->
+          expr = wrap_dynamic({{:., [], [{:as, [], [:source]}, field]}, [no_parens: true], []})
+          {field, expr}
+
+        {field, expr} ->
+          expr = wrap_dynamic(expr)
+          {field, expr}
       end)
 
     {:update, updates}
@@ -75,6 +72,28 @@ defmodule MergeIntoPolyfill do
   defp compile_matched({:not, _, [{:matched?, _, []}]}), do: :not_matched
 
   def matched?() do
+    raise RuntimeError,
+      message: "not meant to be called directly, use in merge_into polyfill macro."
+  end
+
+  def insert(fields) do
+    _ = fields
+    raise RuntimeError,
+      message: "not meant to be called directly, use in merge_into polyfill macro."
+  end
+
+  def update(updates) do
+    _ = updates
+    raise RuntimeError,
+      message: "not meant to be called directly, use in merge_into polyfill macro."
+  end
+
+  def delete() do
+    raise RuntimeError,
+      message: "not meant to be called directly, use in merge_into polyfill macro."
+  end
+
+  def do_nothing() do
     raise RuntimeError,
       message: "not meant to be called directly, use in merge_into polyfill macro."
   end
