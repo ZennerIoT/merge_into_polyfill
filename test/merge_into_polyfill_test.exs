@@ -19,6 +19,14 @@ defmodule MergeIntoPolyfillTest do
   end
 
   test "polyfill test" do
+    test_poly_1(MergeIntoPolyfill.Builders.Polyfill)
+  end
+
+  test "merge into test" do
+    test_poly_1(MergeIntoPolyfill.Builders.MergeInto)
+  end
+
+  def test_poly_1(builder) do
     Repo.insert(%Book{title: "Book 2", year: 1999})
     Repo.insert(%Book{title: "Book 10", year: 2007})
     Repo.insert(%Book{title: "Book 3", year: 2000})
@@ -30,7 +38,7 @@ defmodule MergeIntoPolyfillTest do
         year: gs + 2000
       }
 
-    merge_into(Book, as(:target).title == as(:source).title, source_query, builder: MergeIntoPolyfill.Builders.Polyfill) do
+    merge_into(Book, as(:target).title == as(:source).title, source_query, builder: builder) do
       matched?() and as(:source).year >= 2008 -> update([:year])
       matched?() and as(:target).title == ^"Book 2" -> delete()
       matched?() -> update(title: fragment("concat(?, ' (', ?, ')')", as(:target).title, as(:source).year))
