@@ -1,6 +1,7 @@
 defmodule MergeIntoPolyfill.Builders.Polyfill do
   @behaviour MergeIntoPolyfill.Builder
   import Ecto.Query
+  import MergeIntoPolyfill.Builder
 
   def build_plan(target_schema, on_clause, data_source, when_clauses, _opts) do
     Ecto.Multi.new()
@@ -115,9 +116,5 @@ defmodule MergeIntoPolyfill.Builders.Polyfill do
       )
 
     repo.update_all(query, [])
-  end
-
-  def make_source(%Ecto.Query{} = query) do
-    subquery(query)
   end
 end

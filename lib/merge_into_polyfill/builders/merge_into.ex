@@ -1,6 +1,7 @@
 defmodule MergeIntoPolyfill.Builders.MergeInto do
   @behaviour MergeIntoPolyfill.Builder
   import Ecto.Query
+  import MergeIntoPolyfill.Builder
 
   def build_plan(target_schema, on_clause, data_source, when_clauses, _opts) do
     Ecto.Multi.new()
@@ -35,20 +36,16 @@ defmodule MergeIntoPolyfill.Builders.MergeInto do
       sql =
         sql
         # the target_table is already in the from_list
-        |> String.replace("SELECT TRUE FROM", "MERGE INTO")
+        |> String.replace_prefix("SELECT TRUE FROM", "MERGE INTO")
         # the data_source is in the right join
         |> String.replace("RIGHT OUTER JOIN", "USING")
         # the when_clause list is embedded in the where expression
         |> String.replace("WHERE (", "")
         # ecto puts parantheses around the where expression, so we remove them
-        |> String.replace(~r/\)$/, "")
+        |> String.replace_suffix(")", "")
 
       {:ok, repo.query!(sql, params)}
     end)
-  end
-
-  def make_source(%Ecto.Query{} = query) do
-    subquery(query)
   end
 
   def action_to_dynamic(:delete) do

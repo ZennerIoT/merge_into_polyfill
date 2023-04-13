@@ -5,28 +5,36 @@ defmodule MergeIntoPolyfillTest do
   import Ecto.Query
 
   test "compiles the merge_into macro without compile errors" do
-    values = values(Book, [%{title: "Book 1", year: 2008}])
+    values = values(Book, [:title, :year], [%{title: "Book 1", year: 2008}])
 
     plan =
       merge_into(Book, as(:target).title == as(:source).title, values) do
         matched?() and as(:target).title == ^"Book 2" -> delete()
         matched?() -> update([:year])
-        not matched?() and as(:source).year > 2001 -> update([:year])
+        not matched?() and as(:source).year > 2001 -> insert([:year])
         not matched?() -> insert([:title, :year])
       end
 
     assert %Ecto.Multi{} = plan
   end
 
-  test "polyfill test" do
-    test_poly_1(MergeIntoPolyfill.Builders.Polyfill)
+  test "source query polyfill" do
+    test_source_query(MergeIntoPolyfill.Builders.Polyfill)
   end
 
-  test "merge into test" do
-    test_poly_1(MergeIntoPolyfill.Builders.MergeInto)
+  test "source query merge into" do
+    test_source_query(MergeIntoPolyfill.Builders.MergeInto)
   end
 
-  def test_poly_1(builder) do
+  test "values list polyfill" do
+    test_values_list(MergeIntoPolyfill.Builders.Polyfill)
+  end
+
+  test "values list merge into" do
+    test_values_list(MergeIntoPolyfill.Builders.MergeInto)
+  end
+
+  def test_source_query(builder) do
     Repo.insert(%Book{title: "Book 2", year: 1999})
     Repo.insert(%Book{title: "Book 10", year: 2007})
     Repo.insert(%Book{title: "Book 3", year: 2000})
@@ -62,5 +70,33 @@ defmodule MergeIntoPolyfillTest do
     assert is_nil(Repo.get_by(Book, title: "Book 2"))
     assert not is_nil(Repo.get_by(Book, title: "Book 3 (2003)"))
     assert %{year: 2006} = Repo.get_by(Book, title: "Book 6")
+  end
+
+  def test_values_list(builder) do
+    Repo.insert(%Book{title: "Book 2", year: 1999})
+    Repo.insert(%Book{title: "Book 3", year: 2000})
+    Repo.insert(%Book{title: "Book 10", year: 2007})
+
+    values = MergeIntoPolyfill.values(Book, [:id, :title, :year], [
+      %{id: 1, title: "Abc", year: 1999},
+      %{id: 2, title: "Def", year: 2000},
+      %{id: 3, title: "Bubatz", year: 2023}
+    ])
+
+    merge_into(Book, as(:target).year == as(:source).year, values, builder: builder) do
+      matched?() ->
+        update([:title])
+
+      not matched?() ->
+        insert([:title, :year])
+    end
+    |> Repo.transaction()
+
+    assert Repo.aggregate(Book, :count, :id) == 4
+
+    # test all match cases
+    assert Repo.get_by(Book, year: 1999).title == "Abc"
+    assert Repo.get_by(Book, year: 2000).title == "Def"
+    assert not is_nil(Repo.get_by(Book, year: 2023))
   end
 end

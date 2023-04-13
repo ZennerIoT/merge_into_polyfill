@@ -15,4 +15,10 @@ defmodule MergeIntoPolyfill.Builder do
               when_clauses :: [when_clause()],
               opts :: keyword()
             ) :: Ecto.Multi.t()
+
+
+  def make_source(%Ecto.Query{} = query) do
+    import Ecto.Query
+    subquery(query)
+  end
 end

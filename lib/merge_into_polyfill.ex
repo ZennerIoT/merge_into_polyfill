@@ -18,8 +18,29 @@ defmodule MergeIntoPolyfill do
     end
   end
 
-  @spec values(module(), [struct()]) :: any
-  def values(schema, values) do
+  defmacro values(schema, fields, values) do
+    import Ecto.Query
+
+    selects =
+      Enum.map(fields, fn field ->
+        expr =
+          quote do
+            fragment(
+              "unnest(?)",
+              type(
+                ^Enum.map(unquote(values), &Map.get(&1, unquote(field))),
+                ^{:array, unquote(schema).__schema__(:type, unquote(field))}
+              )
+            )
+          end
+
+        {field, expr}
+      end)
+
+    quote do
+      import Ecto.Query
+      from(q in fragment("generate_series(0, 0)"), select: unquote({:%{}, [], selects}))
+    end
   end
 
   defp wrap_dynamic(quoted) do
@@ -35,18 +56,28 @@ defmodule MergeIntoPolyfill do
       end
 
     action =
-      case action do
-        {:insert, _, [fields]} ->
+      case {action, match} do
+        {{:insert, _, [fields]}, :not_matched} ->
           {:insert, fields}
 
-        {:delete, _, []} ->
+        {{:delete, _, []}, :matched} ->
           :delete
 
-        {:do_nothing, _, []} ->
+        {{:do_nothing, _, []}, _} ->
           :nothing
 
-        {:update, _, [updates]} ->
+        {{:update, _, [updates]}, :matched} ->
           build_update(updates)
+
+        {{:insert, ctx, _}, :matched} ->
+          raise CompileError,
+            line: Keyword.get(ctx, :line),
+            description: "insert/1 can only be used in combination with `not matched?`"
+
+        {{:update, ctx, _}, :not_matched} ->
+          raise CompileError,
+            line: Keyword.get(ctx, :line),
+            description: "update/1 can only be used in combination with `not matched?`"
       end
 
     {:{}, [], [match, condition, action]}
