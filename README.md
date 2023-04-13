@@ -89,3 +89,39 @@ INSERT INTO "books" ("title","year") (SELECT s0."title", s0."year" FROM (SELECT 
 
 commit;
 ```
+
+
+## Setup
+
+ 1. Add the dependency to your `mix.exs`:
+    
+    ```elixir
+    {:merge_into_polyfill, "~> 0.1"}
+    ```
+
+ 2. Add `MergeIntoPolyfill.CheckVersion` to your application supervisor, directly after the ecto repo is started:
+    
+    ```elixir
+    children = [
+      # ...
+      MyApp.Repo, 
+      {MergeIntoPolyfill.CheckVersion, MyApp.Repo}
+      # ...
+    ]
+    ```
+
+    Alternatively, you can set the desired builder every time you are using the `merge_into` macro:
+
+    ```elixir
+    merge_into(Schema, as(:source).id == as(:target).id, values, builder: MergeIntoPolyfill.Builders.MergeInto) do
+      # ...
+    end
+    ```
+
+    or by updating the env that is set by `MergeIntoPolyfill.CheckVersion`:
+
+    ```elixir
+    Application.put_env(:merge_into_polyfill, MergeIntoPolyfill.CheckVersion, builder: MergeIntoPolyfill.Builders.Polyfill)
+    ```
+
+Done! The `MERGE INTO` polyfill is now ready to be used.
