@@ -89,7 +89,7 @@ defmodule MergeIntoPolyfill.Builders.Polyfill do
 
     query =
       from(ds in make_source(data_source),
-        where: ds.id in ^candidates,
+        where: ds.id in type(^candidates, ^{:array, candidate_type(candidates)}),
         select: map(ds, ^fields)
       )
 
@@ -98,7 +98,12 @@ defmodule MergeIntoPolyfill.Builders.Polyfill do
 
   def execute_action(candidates, :delete, repo, _on_clause, target_schema, _) do
     candidates = Enum.map(candidates, & &1["target_id"])
-    query = from(t in target_schema, where: t.id in ^candidates)
+
+    query =
+      from(t in target_schema,
+        where: t.id in type(^candidates, ^{:array, candidate_type(candidates)})
+      )
+
     repo.delete_all(query)
   end
 
@@ -108,7 +113,7 @@ defmodule MergeIntoPolyfill.Builders.Polyfill do
     query =
       from(t in target_schema,
         as: :target,
-        where: t.id in ^candidates,
+        where: t.id in type(^candidates, ^{:array, candidate_type(candidates)}),
         join: ds in ^make_source(data_source),
         as: :source,
         on: ^on_clause,
@@ -116,5 +121,13 @@ defmodule MergeIntoPolyfill.Builders.Polyfill do
       )
 
     repo.update_all(query, [])
+  end
+
+  defp candidate_type([sample | _]) do
+    cond do
+      is_integer(sample) -> :integer
+      Ecto.UUID.dump(sample) != :error -> Ecto.UUID
+      is_binary(sample) -> :string
+    end
   end
 end

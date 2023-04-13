@@ -34,10 +34,10 @@ defmodule MergeIntoPolyfill.MixProject do
   defp deps do
     [
       # {:ecto, "~> 3.10"},
-      {:ecto, path: "../ecto", override: true},
-      {:ecto_sql, "~> 3.10"},
-      {:postgrex, "~> 0.16.5"},
-      {:jason, "~> 1.4"}
+      {:ecto, ">= 3.10.1"},
+      {:ecto_sql, ">= 3.10.0"},
+      {:postgrex, "> 0.0.1"},
+      {:jason, ">= 1.0.0"}
     ]
   end
 end
