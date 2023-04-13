@@ -10,7 +10,25 @@ defmodule MergeIntoPolyfill do
       |> Enum.map(&compile_when_clause/1)
 
     quote do
-      builder = Keyword.get(unquote(opts), :builder, MergeIntoPolyfill.Builders.MergeInto)
+      default_builder =
+        Application.get_env(:merge_into_polyfill, MergeIntoPolyfill.CheckVersion, [])
+        |> Keyword.get(:builder)
+
+      builder = Keyword.get(unquote(opts), :builder, default_builder)
+
+      if is_nil(builder) do
+        raise RuntimeError, """
+        A builder for the merge query must be set in the opts, or by adding
+
+          {MergeIntoPolyfill.CheckVersion, MyRepo}
+
+        to your application spec directly after the repo has been started.
+        Possible builders:
+
+         * MergeIntoPolyfill.Builders.MergeInto for PostgreSQL >= 15
+         * MergeIntoPolyfill.Builders.Polyfill for anything older than PostgreSQL 15
+        """
+      end
 
       builder.build_plan(
         unquote_splicing([target_schema, on_clause, data_source, when_clauses, opts])

@@ -5,6 +5,7 @@ defmodule MergeIntoPolyfillTest do
   import Ecto.Query
 
   test "compiles the merge_into macro without compile errors" do
+    assert :ignore = MergeIntoPolyfill.CheckVersion.check(Repo)
     values = values(Book, [:title, :year], [%{title: "Book 1", year: 2008}])
 
     plan =
@@ -16,6 +17,16 @@ defmodule MergeIntoPolyfillTest do
       end
 
     assert %Ecto.Multi{} = plan
+  end
+
+  test "raises when no builder has been set" do
+    assert_raise RuntimeError, fn ->
+      values = values(Book, [:title, :year], [%{title: "Book 1", year: 2008}])
+
+      merge_into(Book, true, values, builder: nil) do
+        matched?() -> delete()
+      end
+    end
   end
 
   test "source query polyfill" do
