@@ -4,12 +4,14 @@ defmodule MergeIntoPolyfill.MixProject do
   def project do
     [
       app: :merge_into_polyfill,
-      version: "0.1.0",
+      version: "0.1.0-rc-0",
       elixir: "~> 1.14",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
       deps: deps(),
-      aliases: aliases()
+      aliases: aliases(),
+      description: "DSL and polyfill to express MERGE queries using ecto (postgres adapter only)",
+      package: package(),
     ]
   end
 
@@ -37,7 +39,15 @@ defmodule MergeIntoPolyfill.MixProject do
       {:ecto, ">= 3.10.1"},
       {:ecto_sql, ">= 3.10.0"},
       {:postgrex, "> 0.0.1"},
-      {:jason, ">= 1.0.0"}
+      {:jason, ">= 1.0.0"},
+      {:ex_doc, ">= 0.0.0", only: :dev, runtime: false}
+    ]
+  end
+
+  defp package do
+    [
+      licenses: ["MIT"],
+      links: %{"GitHub" => "https://github.com/ZennerIoT/merge_into_polyfill"}
     ]
   end
 end
