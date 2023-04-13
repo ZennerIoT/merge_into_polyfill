@@ -110,4 +110,13 @@ defmodule MergeIntoPolyfillTest do
     assert Repo.get_by(Book, year: 2000).title == "Def"
     assert not is_nil(Repo.get_by(Book, year: 2023))
   end
+
+  test "get_builder" do
+    import MergeIntoPolyfill.CheckVersion
+    alias MergeIntoPolyfill.Builders.{Polyfill, MergeInto}
+    assert get_builder(Version.parse!("15.5.1")) == MergeInto
+    assert get_builder(Version.parse!("23.5.1")) == MergeInto
+    assert get_builder(Version.parse!("14.3.9")) == Polyfill
+    assert get_builder(Version.parse!("12.0.0")) == Polyfill
+  end
 end
