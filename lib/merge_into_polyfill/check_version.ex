@@ -21,7 +21,7 @@ defmodule MergeIntoPolyfill.CheckVersion do
   def get_postgres_version(repo) do
     with {:ok, %{rows: [[version]]}} <- repo.query("SHOW server_version;") do
       version
-      |> maybe_add_patch()
+      |> preprocess_version()
       |> Version.parse()
     end
   end
@@ -33,7 +33,24 @@ defmodule MergeIntoPolyfill.CheckVersion do
     end
   end
 
-  def maybe_add_patch(vs) do
+  @doc """
+  Returns a cleaned up version string with 3 segments
+
+      iex> MergeIntoPolyfill.CheckVersion.preprocess_version("3.5.0")
+      "3.5.0"
+
+      iex> MergeIntoPolyfill.CheckVersion.preprocess_version("3.5")
+      "3.5.0"
+
+      iex> MergeIntoPolyfill.CheckVersion.preprocess_version(" 13.6 (Debian 13.6-1.pgdg110+1)")
+      "13.6.0"
+  """
+  def preprocess_version(vs) do
+    [vs | _os_version] =
+      vs
+      |> String.trim()
+      |> String.split(" ")
+
     if Regex.match?(~r/^[0-9]+\.[0-9]+$/, vs) do
       vs <> ".0"
     else
