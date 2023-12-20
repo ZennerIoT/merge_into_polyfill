@@ -38,11 +38,15 @@ defmodule MergeIntoPolyfill.Builders.Polyfill do
           left_join: class in "pg_class",
           on: class.oid == t.tableoid,
           as: :pg_class,
+          left_join: namespace in "pg_namespace",
+          on: class.relnamespace == namespace.oid,
+          as: :pg_namespace,
           select:
             ^%{
               clauses: json_object,
               target_ctid: dynamic([target: t], fragment("?.ctid", t)),
               target_tablename: dynamic([pg_class: c], c.relname),
+              target_schemaname: dynamic([pg_namespace: n], n.nspname),
               source_id: dynamic(as(:source).id)
             }
         )
@@ -101,10 +105,10 @@ defmodule MergeIntoPolyfill.Builders.Polyfill do
 
   def execute_action(candidates, :delete, repo, _on_clause, _target_schema, _) do
     candidates =
-      Enum.group_by(candidates, & &1.target_tablename, & &1.target_ctid)
+      Enum.group_by(candidates, & {&1.target_schemaname, &1.target_tablename}, & &1.target_ctid)
 
-    for {target_tablename, ctids} <- candidates, length(ctids) > 0 do
-      repo.delete_all(from(t in target_tablename, where: fragment("?.ctid", t) in ^ctids))
+    for {{prefix, table}, ctids} <- candidates, length(ctids) > 0 do
+      repo.delete_all(from(t in table, where: fragment("?.ctid", t) in ^ctids), prefix: prefix)
       |> elem(0)
     end
     |> Enum.sum()
@@ -112,13 +116,13 @@ defmodule MergeIntoPolyfill.Builders.Polyfill do
 
   def execute_action(candidates, {:update, updates}, repo, on_clause, _target_schema, data_source) do
     candidates =
-      Enum.group_by(candidates, & &1.target_tablename)
+      Enum.group_by(candidates, & {&1.target_schemaname, &1.target_tablename})
 
-    for {target_tablename, candidates} <- candidates do
+    for {{prefix, table}, candidates} <- candidates do
       ctids = Enum.map(candidates, & &1.target_ctid)
 
       query =
-        from(t in target_tablename,
+        from(t in table,
           as: :target,
           where: fragment("?.ctid", t) in ^ctids,
           join: ds in ^make_source(data_source),
@@ -127,7 +131,7 @@ defmodule MergeIntoPolyfill.Builders.Polyfill do
           update: [set: ^updates]
         )
 
-      repo.update_all(query, [])
+      repo.update_all(query, [], prefix: prefix)
       |> elem(0)
     end
     |> Enum.sum()
