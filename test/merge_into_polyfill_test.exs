@@ -103,12 +103,13 @@ defmodule MergeIntoPolyfillTest do
     end
     |> Repo.transaction()
 
-    assert Repo.aggregate(Book, :count, :id) == 4
 
     # test all match cases
-    assert Repo.get_by(Book, year: 1999).title == "Abc"
-    assert Repo.get_by(Book, year: 2000).title == "Def"
-    assert not is_nil(Repo.get_by(Book, year: 2023))
+    assert Repo.get_by(Book, year: 1999).title == "Abc", "Book 2 should've been updated to Abc"
+    assert Repo.get_by(Book, year: 2000).title == "Def", "Book 3 should've been updated to Def"
+    assert not is_nil(Repo.get_by(Book, year: 2023)), "Bubatz (2023) should have been inserted"
+
+    assert Repo.aggregate(Book, :count, :id) == 4
   end
 
   test "get_builder" do

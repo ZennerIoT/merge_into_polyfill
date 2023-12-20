@@ -7,13 +7,7 @@ defmodule MergeIntoPolyfill.Builders.Polyfill do
     Ecto.Multi.new()
     |> Ecto.Multi.run(:find_matches, fn repo, _context ->
       json_object =
-        dynamic(
-          fragment(
-            "jsonb_build_object('target_id', ?, 'source_id', ?)",
-            as(:target).id,
-            as(:source).id
-          )
-        )
+        dynamic(type(^%{}, :map))
 
       json_object =
         Enum.map(when_clauses, fn
@@ -41,7 +35,16 @@ defmodule MergeIntoPolyfill.Builders.Polyfill do
           right_join: s in ^make_source(data_source),
           as: :source,
           on: ^on_clause,
-          select: ^json_object
+          left_join: class in "pg_class",
+          on: class.oid == t.tableoid,
+          as: :pg_class,
+          select:
+            ^%{
+              clauses: json_object,
+              target_ctid: dynamic([target: t], fragment("?.ctid", t)),
+              target_tablename: dynamic([pg_class: c], c.relname),
+              source_id: dynamic(as(:source).id)
+            }
         )
 
       {:ok, repo.all(query)}
@@ -54,7 +57,6 @@ defmodule MergeIntoPolyfill.Builders.Polyfill do
           candidates = find_candidates(result, index)
           execute_action(candidates, action, repo, on_clause, target_schema, data_source)
         end)
-        |> Enum.map(&elem(&1, 0))
         |> Enum.sum()
 
       {:ok, affected}
@@ -62,30 +64,30 @@ defmodule MergeIntoPolyfill.Builders.Polyfill do
   end
 
   def find_candidates(result, 0) do
-    Enum.filter(result, &Map.get(&1, "0"))
+    Enum.filter(result, &Map.get(&1.clauses, "0"))
   end
 
   def find_candidates(result, index) do
     Enum.reject(result, fn map ->
-      Enum.any?(0..(index - 1), &Map.get(map, to_string(&1)))
+      Enum.any?(0..(index - 1), &Map.get(map.clauses, to_string(&1)))
     end)
-    |> Enum.filter(&Map.get(&1, to_string(index)))
+    |> Enum.filter(&Map.get(&1.clauses, to_string(index)))
   end
 
   @spec execute_action([any()], any, module, Ecto.Query.dynamic_expr(), module(), any()) ::
-          {non_neg_integer(), nil}
+          non_neg_integer()
   def execute_action(candidates, action, repo, on_clause, target_schema, data_source)
 
   def execute_action([], _, _, _, _, _) do
-    {0, nil}
+    0
   end
 
   def execute_action(_, :nothing, _, _, _, _) do
-    {0, nil}
+    0
   end
 
   def execute_action(candidates, {:insert, fields}, repo, _on_clause, target_schema, data_source) do
-    candidates = Enum.map(candidates, & &1["source_id"])
+    candidates = Enum.map(candidates, & &1.source_id)
 
     query =
       from(ds in make_source(data_source),
@@ -94,33 +96,41 @@ defmodule MergeIntoPolyfill.Builders.Polyfill do
       )
 
     repo.insert_all(target_schema, query)
+    |> elem(0)
   end
 
-  def execute_action(candidates, :delete, repo, _on_clause, target_schema, _) do
-    candidates = Enum.map(candidates, & &1["target_id"])
+  def execute_action(candidates, :delete, repo, _on_clause, _target_schema, _) do
+    candidates =
+      Enum.group_by(candidates, & &1.target_tablename, & &1.target_ctid)
 
-    query =
-      from(t in target_schema,
-        where: t.id in type(^candidates, ^{:array, candidate_type(candidates)})
-      )
-
-    repo.delete_all(query)
+    for {target_tablename, ctids} <- candidates, length(ctids) > 0 do
+      repo.delete_all(from(t in target_tablename, where: fragment("?.ctid", t) in ^ctids))
+      |> elem(0)
+    end
+    |> Enum.sum()
   end
 
-  def execute_action(candidates, {:update, updates}, repo, on_clause, target_schema, data_source) do
-    candidates = Enum.map(candidates, & &1["target_id"])
+  def execute_action(candidates, {:update, updates}, repo, on_clause, _target_schema, data_source) do
+    candidates =
+      Enum.group_by(candidates, & &1.target_tablename)
 
-    query =
-      from(t in target_schema,
-        as: :target,
-        where: t.id in type(^candidates, ^{:array, candidate_type(candidates)}),
-        join: ds in ^make_source(data_source),
-        as: :source,
-        on: ^on_clause,
-        update: [set: ^updates]
-      )
+    for {target_tablename, candidates} <- candidates do
+      ctids = Enum.map(candidates, & &1.target_ctid)
 
-    repo.update_all(query, [])
+      query =
+        from(t in target_tablename,
+          as: :target,
+          where: fragment("?.ctid", t) in ^ctids,
+          join: ds in ^make_source(data_source),
+          as: :source,
+          on: ^on_clause,
+          update: [set: ^updates]
+        )
+
+      repo.update_all(query, [])
+      |> elem(0)
+    end
+    |> Enum.sum()
   end
 
   defp candidate_type([sample | _]) do

@@ -11,6 +11,12 @@ Features:
    * both ways have the same effect, but the `MERGE` query is more performant, 
      since the parameters have to be sent only once.
 
+## Polyfill caveats
+
+ * It is very slow! In load tests with a high QPS, The polyfill was 100x slower than the merge into equivalent.
+ * The source table must have an `id` column
+ * When using the polyfill on partitioned tables, the partition columns must not be updated in a way that places the row outside of the partition it's in. **This library won't check to ensure this is the case!**
+
 ## Examples
 
 The following is code from the test:
