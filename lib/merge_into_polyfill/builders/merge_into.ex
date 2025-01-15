@@ -3,7 +3,9 @@ defmodule MergeIntoPolyfill.Builders.MergeInto do
   import Ecto.Query
   import MergeIntoPolyfill.Builder
 
-  def build_plan(target_schema, on_clause, data_source, when_clauses, _opts) do
+  def build_plan(target_schema, on_clause, data_source, when_clauses, opts) do
+    prefix = Keyword.get(opts, :prefix, "public")
+
     Ecto.Multi.new()
     |> Ecto.Multi.run(:merge, fn repo, _context ->
       whens =
@@ -23,6 +25,7 @@ defmodule MergeIntoPolyfill.Builders.MergeInto do
       query =
         from(t in target_schema,
           as: :target,
+          prefix: ^prefix,
           right_join: ds in ^make_source(data_source),
           as: :source,
           on: ^on_clause,

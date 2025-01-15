@@ -3,7 +3,9 @@ defmodule MergeIntoPolyfill.Builders.Polyfill do
   import Ecto.Query
   import MergeIntoPolyfill.Builder
 
-  def build_plan(target_schema, on_clause, data_source, when_clauses, _opts) do
+  def build_plan(target_schema, on_clause, data_source, when_clauses, opts) do
+    prefix = Keyword.get(opts, :prefix, "public")
+
     Ecto.Multi.new()
     |> Ecto.Multi.run(:find_matches, fn repo, _context ->
       json_object =
@@ -38,6 +40,7 @@ defmodule MergeIntoPolyfill.Builders.Polyfill do
       query =
         from(t in target_schema,
           as: :target,
+          prefix: ^prefix,
           right_join: s in ^make_source(data_source),
           as: :source,
           on: ^on_clause,
@@ -52,7 +55,7 @@ defmodule MergeIntoPolyfill.Builders.Polyfill do
         |> Enum.with_index()
         |> Enum.map(fn {{_, _, action}, index} ->
           candidates = find_candidates(result, index)
-          execute_action(candidates, action, repo, on_clause, target_schema, data_source)
+          execute_action(candidates, action, repo, on_clause, target_schema, data_source, opts)
         end)
         |> Enum.map(&elem(&1, 0))
         |> Enum.sum()
@@ -72,19 +75,19 @@ defmodule MergeIntoPolyfill.Builders.Polyfill do
     |> Enum.filter(&Map.get(&1, to_string(index)))
   end
 
-  @spec execute_action([any()], any, module, Ecto.Query.dynamic_expr(), module(), any()) ::
+  @spec execute_action([any()], any, module, Ecto.Query.dynamic_expr(), module(), any(), keyword()) ::
           {non_neg_integer(), nil}
-  def execute_action(candidates, action, repo, on_clause, target_schema, data_source)
+  def execute_action(candidates, action, repo, on_clause, target_schema, data_source, opts)
 
-  def execute_action([], _, _, _, _, _) do
+  def execute_action([], _, _, _, _, _, _opts) do
     {0, nil}
   end
 
-  def execute_action(_, :nothing, _, _, _, _) do
+  def execute_action(_, :nothing, _, _, _, _, _opts) do
     {0, nil}
   end
 
-  def execute_action(candidates, {:insert, fields}, repo, _on_clause, target_schema, data_source) do
+  def execute_action(candidates, {:insert, fields}, repo, _on_clause, target_schema, data_source, opts) do
     candidates = Enum.map(candidates, & &1["source_id"])
 
     query =
@@ -93,10 +96,10 @@ defmodule MergeIntoPolyfill.Builders.Polyfill do
         select: map(ds, ^fields)
       )
 
-    repo.insert_all(target_schema, query)
+    repo.insert_all(target_schema, query, opts)
   end
 
-  def execute_action(candidates, :delete, repo, _on_clause, target_schema, _) do
+  def execute_action(candidates, :delete, repo, _on_clause, target_schema, _, opts) do
     candidates = Enum.map(candidates, & &1["target_id"])
 
     query =
@@ -104,10 +107,10 @@ defmodule MergeIntoPolyfill.Builders.Polyfill do
         where: t.id in type(^candidates, ^{:array, candidate_type(candidates)})
       )
 
-    repo.delete_all(query)
+    repo.delete_all(query, opts)
   end
 
-  def execute_action(candidates, {:update, updates}, repo, on_clause, target_schema, data_source) do
+  def execute_action(candidates, {:update, updates}, repo, on_clause, target_schema, data_source, opts) do
     candidates = Enum.map(candidates, & &1["target_id"])
 
     query =
@@ -120,7 +123,7 @@ defmodule MergeIntoPolyfill.Builders.Polyfill do
         update: [set: ^updates]
       )
 
-    repo.update_all(query, [])
+    repo.update_all(query, [], opts)
   end
 
   defp candidate_type([sample | _]) do

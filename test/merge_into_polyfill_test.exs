@@ -45,10 +45,10 @@ defmodule MergeIntoPolyfillTest do
     test_values_list(MergeIntoPolyfill.Builders.MergeInto)
   end
 
-  def test_source_query(builder) do
-    Repo.insert(%Book{title: "Book 2", year: 1999})
-    Repo.insert(%Book{title: "Book 10", year: 2007})
-    Repo.insert(%Book{title: "Book 3", year: 2000})
+  def test_source_query(builder, opts \\ []) do
+    Repo.insert(%Book{title: "Book 2", year: 1999}, opts)
+    Repo.insert(%Book{title: "Book 10", year: 2007}, opts)
+    Repo.insert(%Book{title: "Book 3", year: 2000}, opts)
 
     source_query =
       from(gs in fragment("generate_series(1, 10)"),
@@ -59,7 +59,7 @@ defmodule MergeIntoPolyfillTest do
         }
       )
 
-    merge_into(Book, as(:target).title == as(:source).title, source_query, builder: builder) do
+    merge_into(Book, as(:target).title == as(:source).title, source_query, [builder: builder] ++ opts) do
       matched?() and as(:source).year >= 2008 ->
         update([:year])
 
@@ -74,13 +74,13 @@ defmodule MergeIntoPolyfillTest do
     end
     |> Repo.transaction()
 
-    assert Repo.aggregate(Book, :count, :id) == 9
+    assert Repo.aggregate(Book, :count, :id, opts) == 9
 
     # test all match cases
-    assert Repo.one(from(b in Book, where: b.title == ^"Book 10", select: b.year)) == 2010
-    assert is_nil(Repo.get_by(Book, title: "Book 2"))
-    assert not is_nil(Repo.get_by(Book, title: "Book 3 (2003)"))
-    assert %{year: 2006} = Repo.get_by(Book, title: "Book 6")
+    assert Repo.one(from(b in Book, where: b.title == ^"Book 10", select: b.year), opts) == 2010
+    assert is_nil(Repo.get_by(Book, [title: "Book 2"], opts))
+    assert not is_nil(Repo.get_by(Book, [title: "Book 3 (2003)"], opts))
+    assert %{year: 2006} = Repo.get_by(Book, [title: "Book 6"], opts)
   end
 
   def test_values_list(builder) do
